@@ -1,0 +1,21 @@
+# secrets and personal data
+.env
+.env.*
+!.env.example
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# work in progress / local
+wip/
+.claude/
+.vscode/
+.idea/
+.DS_Store
