@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users(
     user_id INTEGER PRIMARY KEY,
     chat_id INTEGER NOT NULL,
     tz_min INTEGER NOT NULL DEFAULT 180,
-    last_alert_utc INTEGER NOT NULL DEFAULT 0
+    last_alert_utc INTEGER NOT NULL DEFAULT 0,
+    nag_msg_id INTEGER
 );
 -- one table for deadlines and aims so ids never collide
 CREATE TABLE IF NOT EXISTS items(
@@ -24,7 +25,8 @@ CREATE TABLE IF NOT EXISTS reminders(
     stage TEXT NOT NULL,
     fire_utc INTEGER NOT NULL,
     sent INTEGER NOT NULL DEFAULT 0,
-    acked INTEGER NOT NULL DEFAULT 0
+    acked INTEGER NOT NULL DEFAULT 0,
+    msg_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_rem_due ON reminders(sent, fire_utc);
 """
@@ -35,6 +37,10 @@ def connect(path: str) -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys=ON")
     con.executescript(SCHEMA)
+    for table, col in (("reminders", "msg_id"), ("users", "nag_msg_id")):  # migrate older DBs
+        if col not in {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {col} INTEGER")
+    con.commit()
     return con
 
 
@@ -97,26 +103,26 @@ def pending_reminders(con, user_id):
     ).fetchall()
 
 
-def mark_sent(con, reminder_id, user_id, now):
-    con.execute("UPDATE reminders SET sent=1 WHERE id=?", (reminder_id,))
+def mark_sent(con, reminder_id, user_id, now, msg_id=None):
+    con.execute("UPDATE reminders SET sent=1, msg_id=? WHERE id=?", (msg_id, reminder_id))
     con.execute("UPDATE users SET last_alert_utc=? WHERE user_id=?", (now, user_id))
     con.commit()
 
 
-def touch_alert(con, user_id, now):
-    con.execute("UPDATE users SET last_alert_utc=? WHERE user_id=?", (now, user_id))
+def touch_alert(con, user_id, now, nag_msg_id=None):
+    con.execute("UPDATE users SET last_alert_utc=?, nag_msg_id=? WHERE user_id=?", (now, nag_msg_id, user_id))
     con.commit()
 
 
-def ack(con, user_id, reminder_id=None, all_=False) -> int:
-    base = ("UPDATE reminders SET acked=1 WHERE acked=0 AND stage!='due' AND item_id IN "
-            "(SELECT id FROM items WHERE user_id=?)")
-    if all_:
-        cur = con.execute(base, (user_id,))
-    else:
-        cur = con.execute(base + " AND id=?", (user_id, reminder_id))
+def ack(con, user_id, reminder_id) -> list[int]:
+    """Ack a reminder plus every other non-due reminder of the same item. Returns the Telegram message ids of the acked reminders so the caller can delete them."""
+    q = ("SELECT id, msg_id FROM reminders WHERE acked=0 AND stage!='due' AND item_id IN "
+         "(SELECT id FROM items WHERE user_id=?)")
+    q += " AND item_id=(SELECT item_id FROM reminders WHERE id=?)"
+    rows = con.execute(q, (user_id, reminder_id)).fetchall()
+    con.executemany("UPDATE reminders SET acked=1 WHERE id=?", [(r["id"],) for r in rows])
     con.commit()
-    return cur.rowcount
+    return [r["msg_id"] for r in rows if r["msg_id"]]
 
 
 def get_item(con, user_id, item_id):

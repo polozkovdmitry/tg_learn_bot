@@ -138,10 +138,15 @@ async def on_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     action, _, arg = q.data.partition(":")
     note = "✅ OK"
     if action == "ok":
-        db.ack(con, uid, int(arg))
-    elif action == "okall":
-        db.ack(con, uid, all_=True)
-        note = "✅ All OK"
+        msg_ids = db.ack(con, uid, int(arg))
+        chat_id = q.message.chat_id
+        for mid in set(msg_ids) | {q.message.message_id}:
+            try:
+                await ctx.bot.delete_message(chat_id, mid)
+            except Exception:
+                pass  # already deleted or older than 48h
+        await q.answer("✅ OK")
+        return
     elif action in ("done", "prol"):
         item = db.get_item(con, uid, int(arg))
         if not item or item["status"] not in ("active", "prolonged"):
@@ -167,11 +172,11 @@ async def tick(ctx: ContextTypes.DEFAULT_TYPE):
         db.add_daily(con, it["id"], now, next_daily_11(now, it["tz_min"]))
     for r in db.due_reminders(con, now):
         try:
-            await ctx.bot.send_message(r["chat_id"], reminder_text(r, r["tz_min"]), reply_markup=kb_for(r))
+            msg = await ctx.bot.send_message(r["chat_id"], reminder_text(r, r["tz_min"]), reply_markup=kb_for(r))
         except Exception:
             log.exception("send failed for reminder %s", r["id"])
             continue
-        db.mark_sent(con, r["id"], r["user_id"], now)
+        db.mark_sent(con, r["id"], r["user_id"], now, msg.message_id)
     for u in con.execute("SELECT * FROM users").fetchall():
         if now - u["last_alert_utc"] < NAG_SECONDS:
             continue
@@ -183,11 +188,15 @@ async def tick(ctx: ContextTypes.DEFAULT_TYPE):
             lines.append(f"• {KIND_LABEL[r['kind']]} #{r['item_id']} {STAGE_LABEL[r['stage']]}: {r['text']} "
                          f"(due {fmt(r['due_utc'], u['tz_min'])})")
             rows.append(kb_for({"stage": r["stage"], "item_id": r["item_id"], "id": r["id"]}).inline_keyboard[0])
-        rows.append([InlineKeyboardButton("OK all", callback_data="okall")])
         try:
-            await ctx.bot.send_message(u["chat_id"], "🔔 Unconfirmed alerts:\n" + "\n".join(lines),
-                                       reply_markup=InlineKeyboardMarkup(rows))
-            db.touch_alert(con, u["user_id"], now)
+            if u["nag_msg_id"]:
+                try:
+                    await ctx.bot.delete_message(u["chat_id"], u["nag_msg_id"])
+                except Exception:
+                    pass
+            msg = await ctx.bot.send_message(u["chat_id"], "🔔 Unconfirmed alerts:\n" + "\n".join(lines),
+                                             reply_markup=InlineKeyboardMarkup(rows))
+            db.touch_alert(con, u["user_id"], now, msg.message_id)
         except Exception:
             log.exception("nag failed for user %s", u["user_id"])
 
