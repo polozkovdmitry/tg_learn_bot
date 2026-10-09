@@ -76,6 +76,6 @@ Plain HTML/CSS/JS in [miniapp/](miniapp/), no build step. Cards are key:value pa
 - **Add:** key + value, saved cards join the current session at once.
 - **Cards:** list with edit and delete.
 
-Storage layout: `fc:index` (JSON array of ids), `fc:c<N>` (`{"k","v"}`), `fc:next` (id counter). CloudStorage allows 1024 keys, so about 1000 cards.
+Storage layout: `fc_index` (JSON array of ids), `fc_c<N>` (`{"k","v"}`), `fc_next` (id counter). CloudStorage allows 1024 keys, so about 1000 cards.
 
 Hosting: push the repo, enable GitHub Pages (Settings → Pages), then set `MINIAPP_URL` in `.env` to the `https://…/miniapp/` URL. Use `/app` in the bot, or register the URL in BotFather (`/newapp`, or the bot's menu button) to open it from the chat menu.

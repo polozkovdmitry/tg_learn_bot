@@ -43,7 +43,7 @@ const store = {
   },
 };
 
-// ---------- cards: fc:index = ["c1", ...], fc:c<N> = {k, v}, fc:next = counter ----------
+// ---------- cards: fc_index = ["c1", ...], fc_c<N> = {k, v}, fc_next = counter ----------
 
 let cards = new Map(); // id -> {k, v}, insertion order = index order
 
@@ -56,41 +56,41 @@ function parseJSON(s, fallback) {
 }
 
 async function loadCards() {
-  const ids = parseJSON(await store.getItem("fc:index"), []);
+  const ids = parseJSON(await store.getItem("fc_index"), []);
   cards = new Map();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const part = ids.slice(i, i + CHUNK);
-    const vals = await store.getItems(part.map((id) => "fc:" + id));
+    const vals = await store.getItems(part.map((id) => "fc_" + id));
     for (const id of part) {
-      const c = parseJSON(vals["fc:" + id], null);
+      const c = parseJSON(vals["fc_" + id], null);
       if (c && typeof c.k === "string") cards.set(id, c);
     }
   }
 }
 
 function saveIndex() {
-  return store.setItem("fc:index", JSON.stringify([...cards.keys()]));
+  return store.setItem("fc_index", JSON.stringify([...cards.keys()]));
 }
 
 async function addCard(k, v) {
-  const n = (parseInt(await store.getItem("fc:next"), 10) || 0) + 1;
+  const n = (parseInt(await store.getItem("fc_next"), 10) || 0) + 1;
   const id = "c" + n;
-  await store.setItem("fc:" + id, JSON.stringify({ k, v }));
-  await store.setItem("fc:next", String(n));
+  await store.setItem("fc_" + id, JSON.stringify({ k, v }));
+  await store.setItem("fc_next", String(n));
   cards.set(id, { k, v });
   await saveIndex();
   return id;
 }
 
 async function updateCard(id, k, v) {
-  await store.setItem("fc:" + id, JSON.stringify({ k, v }));
+  await store.setItem("fc_" + id, JSON.stringify({ k, v }));
   cards.set(id, { k, v });
 }
 
 async function deleteCard(id) {
   cards.delete(id);
   await saveIndex(); // index first: an orphaned card key is harmless, a dangling index entry is skipped on load
-  await store.removeItem("fc:" + id);
+  await store.removeItem("fc_" + id);
 }
 
 // ---------- session state (memory only, full set on every open) ----------
