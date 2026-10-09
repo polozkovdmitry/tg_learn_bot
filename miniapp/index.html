@@ -16,7 +16,7 @@
 
 <main>
   <section id="review" class="screen">
-    <div id="counter"></div>
+    <div class="bar"><button class="fbtn"></button><div id="counter"></div></div>
     <div id="stage">
       <div id="card"><div id="inner">
         <div class="face front"><div class="text" id="front"></div></div>
@@ -37,15 +37,35 @@
   <section id="add" class="screen" hidden>
     <label>Key (front)<textarea id="add-k" rows="3"></textarea></label>
     <label>Value (back)<textarea id="add-v" rows="5"></textarea></label>
+    <div class="row">
+      <label>Group<input id="add-g" list="dl-groups" placeholder="e.g. ipii" autocomplete="off" autocapitalize="none"></label>
+      <label>Subject<input id="add-s" list="dl-subjects" placeholder="e.g. recsys" autocomplete="off" autocapitalize="none"></label>
+    </div>
+    <datalist id="dl-groups"></datalist>
+    <datalist id="dl-subjects"></datalist>
     <div id="add-err" class="err"></div>
     <button id="add-save" class="primary">Save</button>
   </section>
 
   <section id="list" class="screen" hidden>
+    <div class="bar"><button class="fbtn"></button><div id="list-count"></div></div>
     <div id="list-items"></div>
     <p id="list-empty" hidden>No cards yet.</p>
   </section>
 </main>
+
+<div id="sheet" hidden>
+  <div id="sheet-body">
+    <h3>Filter cards</h3>
+    <div class="lbl">Group</div>
+    <div class="chips" id="f-groups"></div>
+    <div id="f-sub-wrap" hidden>
+      <div class="lbl">Subject</div>
+      <div class="chips" id="f-subjects"></div>
+    </div>
+    <button id="f-close" class="primary">Done</button>
+  </div>
+</div>
 
 <div id="toast"></div>
 <script src="app.js"></script>

@@ -43,9 +43,10 @@ const store = {
   },
 };
 
-// ---------- cards: fc_index = ["c1", ...], fc_c<N> = {k, v}, fc_next = counter ----------
+// ---------- cards: fc_index = ["c1", ...], fc_c<N> = {k, v, g?, s?}, fc_next = counter ----------
+// g = group (first layer, e.g. "ipii"), s = subject within the group (second layer, e.g. "recsys")
 
-let cards = new Map(); // id -> {k, v}, insertion order = index order
+let cards = new Map(); // id -> {k, v, g?, s?}, insertion order = index order
 
 function parseJSON(s, fallback) {
   try {
@@ -72,19 +73,30 @@ function saveIndex() {
   return store.setItem("fc_index", JSON.stringify([...cards.keys()]));
 }
 
-async function addCard(k, v) {
+function normTag(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function makeCard(k, v, g, s) {
+  const c = { k, v };
+  if (g) c.g = g;
+  if (g && s) c.s = s;
+  return c;
+}
+
+async function addCard(c) {
   const n = (parseInt(await store.getItem("fc_next"), 10) || 0) + 1;
   const id = "c" + n;
-  await store.setItem("fc_" + id, JSON.stringify({ k, v }));
+  await store.setItem("fc_" + id, JSON.stringify(c));
   await store.setItem("fc_next", String(n));
-  cards.set(id, { k, v });
+  cards.set(id, c);
   await saveIndex();
   return id;
 }
 
-async function updateCard(id, k, v) {
-  await store.setItem("fc_" + id, JSON.stringify({ k, v }));
-  cards.set(id, { k, v });
+async function updateCard(id, c) {
+  await store.setItem("fc_" + id, JSON.stringify(c));
+  cards.set(id, c);
 }
 
 async function deleteCard(id) {
@@ -93,14 +105,63 @@ async function deleteCard(id) {
   await store.removeItem("fc_" + id);
 }
 
-// ---------- session state (memory only, full set on every open) ----------
+// ---------- filter + session state (memory only, no filter on every open) ----------
 
+let filter = { g: "", s: "" }; // empty = all cards; g alone = whole group; g + s = one subject
 let sample = [];
 let current = null;
 let last = null;
 
+function matches(c) {
+  return (!filter.g || c.g === filter.g) && (!filter.s || c.s === filter.s);
+}
+
+function matchingIds() {
+  return [...cards].filter(([, c]) => matches(c)).map(([id]) => id);
+}
+
+// group -> {n, subs: Map(subject -> n)}, for the filter sheet and autocomplete
+function tagStats() {
+  const groups = new Map();
+  for (const c of cards.values()) {
+    if (!c.g) continue;
+    if (!groups.has(c.g)) groups.set(c.g, { n: 0, subs: new Map() });
+    const e = groups.get(c.g);
+    e.n++;
+    if (c.s) e.subs.set(c.s, (e.subs.get(c.s) || 0) + 1);
+  }
+  return groups;
+}
+
+// drop a filter whose tag no longer exists on any card
+function fixFilter() {
+  const groups = tagStats();
+  if (filter.g && !groups.has(filter.g)) filter = { g: "", s: "" };
+  else if (filter.s && !groups.get(filter.g).subs.has(filter.s)) filter.s = "";
+}
+
+function filterLabel() {
+  return !filter.g ? "All cards" : filter.s ? `${filter.g} › ${filter.s}` : filter.g;
+}
+
+function renderFilterButtons() {
+  for (const b of document.querySelectorAll(".fbtn")) {
+    b.textContent = "🏷 " + filterLabel();
+    b.classList.toggle("on", !!filter.g);
+  }
+}
+
+function setFilter(g, s) {
+  filter = { g, s };
+  resetSample();
+  renderFilterButtons();
+  renderSheet();
+  next();
+  if (!$("list").hidden) renderList();
+}
+
 function resetSample() {
-  sample = [...cards.keys()];
+  sample = matchingIds();
   current = null;
   last = null;
 }
@@ -139,6 +200,7 @@ function show(screen) {
     else renderReview();
   }
   if (screen === "list") renderList();
+  if (screen === "add") refreshTagLists();
   if (screen === "add" && editingId === null) $("add-k").focus();
 }
 
@@ -147,14 +209,15 @@ function show(screen) {
 const card = $("card");
 
 function renderReview() {
-  $("counter").textContent = `${sample.length} / ${cards.size} remaining`;
+  const total = matchingIds().length;
+  $("counter").textContent = `${sample.length} / ${total} remaining`;
   const has = current && cards.has(current);
   card.hidden = !has;
   $("actions").hidden = !has;
   $("empty").hidden = has;
   if (!has) {
-    $("empty-msg").textContent = cards.size ? "All done 🎉" : "No cards yet. Add one!";
-    $("restart").hidden = !cards.size;
+    $("empty-msg").textContent = total ? "All done 🎉" : cards.size ? "No cards match this filter." : "No cards yet. Add one!";
+    $("restart").hidden = !total;
   }
 }
 
@@ -237,12 +300,24 @@ card.addEventListener("pointercancel", endDrag);
 // ---------- add / edit ----------
 
 let editingId = null;
+let addTags = null; // {g, s} of the last card added this session; null until then (falls back to the active filter)
+
+function refreshTagLists() {
+  const groups = tagStats();
+  $("dl-groups").replaceChildren(...[...groups.keys()].map((g) => new Option(g)));
+  const subs = groups.get(normTag($("add-g").value));
+  $("dl-subjects").replaceChildren(...(subs ? [...subs.subs.keys()] : []).map((s) => new Option(s)));
+}
+$("add-g").oninput = refreshTagLists;
 
 function setEditing(id) {
   editingId = id;
-  const c = id ? cards.get(id) : { k: "", v: "" };
+  const c = id ? cards.get(id) : { k: "", v: "", ...(addTags || filter) };
   $("add-k").value = c.k;
   $("add-v").value = c.v;
+  $("add-g").value = c.g || "";
+  $("add-s").value = c.s || "";
+  refreshTagLists();
   $("add-err").textContent = "";
   $("add-save").textContent = id ? "Update" : "Save";
 }
@@ -250,24 +325,35 @@ function setEditing(id) {
 $("add-save").onclick = async () => {
   const k = $("add-k").value.trim();
   const v = $("add-v").value.trim();
+  const g = normTag($("add-g").value);
+  const s = normTag($("add-s").value);
   if (!k || !v) {
     $("add-err").textContent = "Both key and value are required.";
     return;
   }
-  if (JSON.stringify({ k, v }).length > MAX_VALUE_LEN) {
+  if (s && !g) {
+    $("add-err").textContent = "A subject needs a group.";
+    return;
+  }
+  const c = makeCard(k, v, g, s);
+  if (JSON.stringify(c).length > MAX_VALUE_LEN) {
     $("add-err").textContent = "Too long: key + value must be under ~4000 characters.";
     return;
   }
   $("add-save").disabled = true;
   try {
     if (editingId) {
-      await updateCard(editingId, k, v);
+      await updateCard(editingId, c);
+      if (!matches(c)) sample = sample.filter((x) => x !== editingId);
+      fixFilter();
+      renderFilterButtons();
       toast("Updated");
       setEditing(null);
       show("list");
     } else {
-      const id = await addCard(k, v);
-      sample.push(id);
+      const id = await addCard(c);
+      if (matches(c)) sample.push(id);
+      addTags = { g: c.g || "", s: c.s || "" };
       toast("Saved");
       setEditing(null);
       $("add-k").focus();
@@ -285,8 +371,12 @@ $("add-save").onclick = async () => {
 function renderList() {
   const box = $("list-items");
   box.replaceChildren();
-  $("list-empty").hidden = cards.size > 0;
-  for (const [id, c] of cards) {
+  const ids = matchingIds();
+  $("list-empty").textContent = cards.size ? "No cards match this filter." : "No cards yet.";
+  $("list-empty").hidden = ids.length > 0;
+  $("list-count").textContent = `${ids.length} / ${cards.size} cards`;
+  for (const id of ids) {
+    const c = cards.get(id);
     const row = document.createElement("div");
     row.className = "item";
     const t = document.createElement("div");
@@ -298,6 +388,18 @@ function renderList() {
     v.className = "v";
     v.textContent = c.v;
     t.append(k, v);
+    if (c.g) {
+      const tags = document.createElement("div");
+      tags.className = "tags";
+      for (const name of [c.g, c.s]) {
+        if (!name) continue;
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = name;
+        tags.append(tag);
+      }
+      t.append(tags);
+    }
     const edit = document.createElement("button");
     edit.textContent = "✎";
     edit.onclick = () => {
@@ -320,6 +422,8 @@ function confirmDelete(id) {
       await deleteCard(id);
       sample = sample.filter((x) => x !== id);
       if (current === id) current = null;
+      fixFilter();
+      renderFilterButtons();
       renderList();
     } catch (e) {
       toast("Could not delete: " + e.message);
@@ -329,11 +433,53 @@ function confirmDelete(id) {
   else run(window.confirm("Delete this card?"));
 }
 
+// ---------- filter sheet ----------
+
+function chip(label, count, on, onclick) {
+  const b = document.createElement("button");
+  b.className = "chip" + (on ? " on" : "");
+  b.append(label);
+  const small = document.createElement("small");
+  small.textContent = count;
+  b.append(small);
+  b.onclick = onclick;
+  return b;
+}
+
+function renderSheet() {
+  const groups = tagStats();
+  $("f-groups").replaceChildren(
+    chip("All", cards.size, !filter.g, () => setFilter("", "")),
+    ...[...groups].map(([g, e]) => chip(g, e.n, filter.g === g, () => setFilter(g, "")))
+  );
+  const e = groups.get(filter.g);
+  $("f-sub-wrap").hidden = !e || !e.subs.size;
+  if (e) {
+    $("f-subjects").replaceChildren(
+      chip(`All ${filter.g}`, e.n, !filter.s, () => setFilter(filter.g, "")),
+      ...[...e.subs].map(([s, n]) => chip(s, n, filter.s === s, () => setFilter(filter.g, s)))
+    );
+  }
+}
+
+for (const b of document.querySelectorAll(".fbtn")) {
+  b.onclick = () => {
+    fixFilter();
+    renderSheet();
+    $("sheet").hidden = false;
+  };
+}
+$("f-close").onclick = () => ($("sheet").hidden = true);
+$("sheet").onclick = (e) => {
+  if (e.target === $("sheet")) $("sheet").hidden = true;
+};
+
 // ---------- navigation / boot ----------
 
 for (const b of document.querySelectorAll("nav button")) {
   b.onclick = () => {
-    if (b.dataset.screen === "add" && editingId) setEditing(null);
+    // fresh form (re-prefilled with default tags) unless a half-typed new card is waiting
+    if (b.dataset.screen === "add" && (editingId || !($("add-k").value || $("add-v").value))) setEditing(null);
     show(b.dataset.screen);
   };
 }
@@ -345,6 +491,7 @@ for (const b of document.querySelectorAll("nav button")) {
     toast("Could not load cards: " + e.message);
   }
   resetSample();
+  renderFilterButtons();
   next();
   show("review");
 })();

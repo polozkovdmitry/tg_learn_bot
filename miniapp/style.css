@@ -28,7 +28,10 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px; gap: 12px; }
 #add, #list { overflow-y: auto; }
 
-#counter { text-align: center; color: var(--hint); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#counter, #list-count { color: var(--hint); text-align: right; }
+.fbtn { padding: 6px 12px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fbtn.on { background: var(--btn); color: var(--btn-fg); }
 #stage { flex: 1; min-height: 0; position: relative; perspective: 1000px; display: flex; }
 #empty { margin: auto; text-align: center; }
 #empty p { font-size: 20px; }
@@ -58,6 +61,12 @@ textarea {
   font: 16px/1.4 inherit; font-family: inherit; color: var(--fg); background: var(--sec);
   border: 0; border-radius: 12px; padding: 12px; resize: none; width: 100%;
 }
+input {
+  font: inherit; color: var(--fg); background: var(--sec);
+  border: 0; border-radius: 12px; padding: 12px; width: 100%; min-width: 0;
+}
+.row { display: flex; gap: 12px; }
+.row label { flex: 1; min-width: 0; }
 .err { color: var(--danger); min-height: 1.4em; }
 
 .item { display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--sec); border-radius: 12px; margin-bottom: 8px; }
@@ -65,6 +74,8 @@ textarea {
 .item .k { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .v { color: var(--hint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item button { background: var(--bg); padding: 8px 10px; }
+.item .tags { margin-top: 2px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--bg); color: var(--hint); margin-right: 4px; }
 .item .del { color: var(--danger); }
 
 #toast {
@@ -73,3 +84,11 @@ textarea {
   transition: all .25s; pointer-events: none;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+#sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, .4); display: flex; align-items: flex-end; z-index: 10; }
+#sheet-body { width: 100%; max-height: 80%; overflow-y: auto; background: var(--bg); border-radius: 20px 20px 0 0; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+#sheet h3 { margin: 0; }
+.lbl { color: var(--hint); font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip.on { background: var(--btn); color: var(--btn-fg); }
+.chip small { opacity: .7; margin-left: 4px; }
