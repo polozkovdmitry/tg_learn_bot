@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Flashcards</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <button data-screen="review" class="active">Review</button>
+  <button data-screen="add">Add</button>
+  <button data-screen="list">Cards</button>
+</nav>
+
+<main>
+  <section id="review" class="screen">
+    <div id="counter"></div>
+    <div id="stage">
+      <div id="card"><div id="inner">
+        <div class="face front"><div class="text" id="front"></div></div>
+        <div class="face back"><div class="text" id="back"></div></div>
+      </div></div>
+      <div id="empty" hidden>
+        <p id="empty-msg"></p>
+        <button id="restart" class="primary">Restart</button>
+      </div>
+    </div>
+    <div id="actions">
+      <button id="done" class="act">✕ Done</button>
+      <button id="keep" class="act">✓ Keep</button>
+    </div>
+    <p class="hint">Tap the card to flip. Swipe left = done, right = keep.</p>
+  </section>
+
+  <section id="add" class="screen" hidden>
+    <label>Key (front)<textarea id="add-k" rows="3"></textarea></label>
+    <label>Value (back)<textarea id="add-v" rows="5"></textarea></label>
+    <div id="add-err" class="err"></div>
+    <button id="add-save" class="primary">Save</button>
+  </section>
+
+  <section id="list" class="screen" hidden>
+    <div id="list-items"></div>
+    <p id="list-empty" hidden>No cards yet.</p>
+  </section>
+</main>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

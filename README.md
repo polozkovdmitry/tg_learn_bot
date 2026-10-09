@@ -14,6 +14,7 @@ Times are GMT+3.
 | `/aim <text> yyyy mm dd hh mm` | Add a learning aim |
 | `/list`, `/dds`, `/aims` | Show all active items, only deadlines, or only aims |
 | `/del <id>` | Delete an item |
+| `/app` | Open the flashcards Mini App |
 
 The date is the last five words of the message. The year must be four digits starting with `20`. Deadlines and aims share one ID space, so an ID is unique across both.
 
@@ -67,6 +68,14 @@ data/             database and logs (git-ignored)
 
 Every row is tied to a `user_id`, and an allowlist from `.env` decides who may use the bot, so more users can be added later without a schema change.
 
-## Planned
+## Flashcards Mini App
 
-A Telegram Mini App with simple flashcards (key:value cards, random review, swipe left to drop a card from the session, swipe right to keep it), hosted on GitHub Pages and stored in Telegram CloudStorage.
+Plain HTML/CSS/JS in [miniapp/](miniapp/), no build step. Cards are key:value pairs stored per user in Telegram CloudStorage (synced across devices; falls back to `localStorage` outside Telegram).
+
+- **Review:** a random card is shown; tap to flip. Swipe left (or ✕ Done) removes it from the current session, swipe right (or ✓ Keep) leaves it in. The next card is drawn uniformly at random from the remaining ones, excluding the card just shown when more than one is left. Done only lasts for the session; every opening starts with the full set. Stored cards are never deleted by swiping.
+- **Add:** key + value, saved cards join the current session at once.
+- **Cards:** list with edit and delete.
+
+Storage layout: `fc:index` (JSON array of ids), `fc:c<N>` (`{"k","v"}`), `fc:next` (id counter). CloudStorage allows 1024 keys, so about 1000 cards.
+
+Hosting: push the repo, enable GitHub Pages (Settings → Pages), then set `MINIAPP_URL` in `.env` to the `https://…/miniapp/` URL. Use `/app` in the bot, or register the URL in BotFather (`/newapp`, or the bot's menu button) to open it from the chat menu.

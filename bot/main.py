@@ -3,7 +3,7 @@ import os
 import time
 from pathlib import Path
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from . import db
@@ -67,7 +67,18 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/dd <name> yyyy mm dd hh mm — add deadline\n"
         "/aim <text> yyyy mm dd hh mm — add aim\n"
         "/list, /dds, /aims — show active items\n"
-        "/del <id> — delete item\nTimes are GMT+3.")
+        "/del <id> — delete item\n/app — open flashcards\nTimes are GMT+3.")
+
+
+async def cmd_app(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not await guard(update, ctx):
+        return
+    url = os.environ.get("MINIAPP_URL")
+    if not url:
+        await update.message.reply_text("MINIAPP_URL is not set in .env.")
+        return
+    await update.message.reply_text(
+        "Flashcards", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📇 Open", web_app=WebAppInfo(url))]]))
 
 
 async def _add(update: Update, ctx, kind: str):
@@ -215,7 +226,7 @@ def main():
     app = Application.builder().token(token).build()
     app.bot_data.update(db=con, allowed=allowed_ids)
     for name, fn in [("start", cmd_start), ("dd", cmd_dd), ("aim", cmd_aim), ("list", cmd_list),
-                     ("dds", cmd_dds), ("aims", cmd_aims), ("del", cmd_del)]:
+                     ("dds", cmd_dds), ("aims", cmd_aims), ("del", cmd_del), ("app", cmd_app)]:
         app.add_handler(CommandHandler(name, fn))
     app.add_handler(CallbackQueryHandler(on_button))
     app.job_queue.run_repeating(tick, interval=TICK_SECONDS, first=1)
